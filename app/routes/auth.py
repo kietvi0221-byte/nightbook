@@ -24,7 +24,8 @@ def register():
     if cursor.fetchone():
         return jsonify({'error': 'Tên tài khoản này đã tồn tại!'}), 400
 
-    hashed_pw = generate_password_hash(password)
+    # Dùng pbkdf2 với 10.000 vòng lặp giúp xử lý xong chỉ trong vài miligiây
+    hashed_pw = generate_password_hash(password, method='pbkdf2:sha256:10000')
     cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw))
     db.commit()
 

@@ -2,9 +2,11 @@ let currentMood = 'calm';
 let skyLevel = 1;
 let isLoginMode = true;
 let currentChatUserId = null;
+let animationFrameId = null;
 
 const socket = io();
 
+// Xử lý nhận tin nhắn Real-time
 socket.on('receive_message', (msg) => {
     if (currentChatUserId && (msg.sender_id === currentChatUserId || msg.receiver_id === currentChatUserId)) {
         appendSingleMessage(msg);
@@ -18,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
+    // Chuyển Tab mượt mà
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -32,6 +35,7 @@ function setupEventListeners() {
         });
     });
 
+    // Chọn cảm xúc
     document.querySelectorAll('.mood-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
@@ -40,6 +44,7 @@ function setupEventListeners() {
         });
     });
 
+    // Chuyển đổi giữa Đăng nhập / Đăng ký
     document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
         e.preventDefault();
         isLoginMode = !isLoginMode;
@@ -81,26 +86,39 @@ function setupEventListeners() {
     });
 }
 
+// Tối ưu Auth
 async function handleAuth() {
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
     const errorDiv = document.getElementById('auth-error');
 
-    const url = isLoginMode ? '/api/login' : '/api/register';
-    const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
+    if (!username.trim() || !password.trim()) {
+        errorDiv.innerText = 'Vui lòng nhập tên đăng nhập và mật khẩu!';
+        errorDiv.style.display = 'block';
+        return;
+    }
 
-    const data = await res.json();
-    if (res.ok) {
-        errorDiv.style.display = 'none';
-        document.getElementById('auth-username').value = '';
-        document.getElementById('auth-password').value = '';
-        checkAuth();
-    } else {
-        errorDiv.innerText = data.error || 'Có lỗi xảy ra!';
+    const url = isLoginMode ? '/api/login' : '/api/register';
+    
+    try {
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+            errorDiv.style.display = 'none';
+            document.getElementById('auth-username').value = '';
+            document.getElementById('auth-password').value = '';
+            checkAuth();
+        } else {
+            errorDiv.innerText = data.error || 'Có lỗi xảy ra!';
+            errorDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errorDiv.innerText = 'Lỗi kết nối máy chủ!';
         errorDiv.style.display = 'block';
     }
 }
@@ -124,7 +142,6 @@ async function checkAuth() {
 
         loadPrivateEntries();
         loadPublicEntries();
-        loadLeaderboard();
     } else {
         appContainer.style.display = 'none';
         modal.style.display = 'flex';
@@ -219,7 +236,9 @@ async function openChat(friendId, username) {
     document.getElementById('send-msg-btn').disabled = false;
     document.getElementById('chat-input').focus();
     
-    loadFriends();
+    // Cập nhật giao diện bạn bè
+    document.querySelectorAll('.friend-item').forEach(el => el.classList.remove('active'));
+    
     loadMessages();
 }
 
@@ -235,32 +254,31 @@ async function loadMessages() {
         return;
     }
 
-    container.innerHTML = messages.map(m => {
+    const fragment = document.createDocumentFragment();
+    messages.forEach(m => {
         const isMe = m.sender_id !== currentChatUserId;
-        return `
-            <div class="message-bubble ${isMe ? 'me' : 'them'}">
-                <div class="msg-content">${m.content}</div>
-            </div>
-        `;
-    }).join('');
+        const div = document.createElement('div');
+        div.className = `message-bubble ${isMe ? 'me' : 'them'}`;
+        div.innerHTML = `<div class="msg-content">${m.content}</div>`;
+        fragment.appendChild(div);
+    });
 
+    container.innerHTML = '';
+    container.appendChild(fragment);
     container.scrollTop = container.scrollHeight;
 }
 
 function appendSingleMessage(msg) {
     const container = document.getElementById('chat-messages');
-    
     const placeholder = container.querySelector('.empty-chat-placeholder');
     if (placeholder) placeholder.remove();
 
     const isMe = msg.sender_id !== currentChatUserId;
+    const div = document.createElement('div');
+    div.className = `message-bubble ${isMe ? 'me' : 'them'}`;
+    div.innerHTML = `<div class="msg-content">${msg.content}</div>`;
     
-    const msgHTML = `
-        <div class="message-bubble ${isMe ? 'me' : 'them'}">
-            <div class="msg-content">${msg.content}</div>
-        </div>
-    `;
-    container.innerHTML += msgHTML;
+    container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
@@ -311,6 +329,7 @@ async function loadLeaderboard() {
     }).join('');
 }
 
+// Tối ưu Canvas: Render nhẹ và tự dừng khi tab ẩn
 function initSkyCanvas() {
     const canvas = document.getElementById('sky-canvas');
     if (!canvas) return;
@@ -323,18 +342,19 @@ function initSkyCanvas() {
     resize();
     window.addEventListener('resize', resize);
 
-    const stars = Array.from({ length: 150 }, () => ({
+    // Giảm số lượng sao xuống 60 để nhẹ máy
+    const stars = Array.from({ length: 60 }, () => ({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        radius: Math.random() * 1.5,
+        radius: Math.random() * 1.2,
         alpha: Math.random(),
-        speed: 0.005 + Math.random() * 0.01
+        speed: 0.005 + Math.random() * 0.008
     }));
 
     function animate() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
-        const visibleStars = Math.min(stars.length, skyLevel * 30);
+        const visibleStars = Math.min(stars.length, skyLevel * 20);
         for (let i = 0; i < visibleStars; i++) {
             const star = stars[i];
             star.alpha += star.speed;
@@ -346,7 +366,17 @@ function initSkyCanvas() {
             ctx.fill();
         }
 
-        requestAnimationFrame(animate);
+        animationFrameId = requestAnimationFrame(animate);
     }
+
+    // Tự dừng animation khi chuyển Tab trình duyệt để tiết kiệm CPU
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            cancelAnimationFrame(animationFrameId);
+        } else {
+            animate();
+        }
+    });
+
     animate();
 }
