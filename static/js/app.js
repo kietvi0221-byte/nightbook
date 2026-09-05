@@ -3,6 +3,14 @@ let skyLevel = 1;
 let isLoginMode = true;
 let currentChatUserId = null;
 
+const socket = io();
+
+socket.on('receive_message', (msg) => {
+    if (currentChatUserId && (msg.sender_id === currentChatUserId || msg.receiver_id === currentChatUserId)) {
+        appendSingleMessage(msg);
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     initSkyCanvas();
     checkAuth();
@@ -112,6 +120,8 @@ async function checkAuth() {
         document.getElementById('sky-level-val').innerText = `Cấp ${data.sky_level}`;
         skyLevel = data.sky_level;
         
+        socket.emit('join_room', {});
+
         loadPrivateEntries();
         loadPublicEntries();
         loadLeaderboard();
@@ -123,6 +133,7 @@ async function checkAuth() {
 
 async function loadPrivateEntries() {
     const res = await fetch('/api/entries/private');
+    if (!res.ok) return;
     const entries = await res.json();
     const container = document.getElementById('private-entries-list');
     
@@ -139,6 +150,7 @@ async function loadPrivateEntries() {
 
 async function loadPublicEntries() {
     const res = await fetch('/api/entries/public');
+    if (!res.ok) return;
     const entries = await res.json();
     const container = document.getElementById('public-entries-list');
     
@@ -172,27 +184,40 @@ async function addFriend(friendId) {
 
 async function loadFriends() {
     const res = await fetch('/api/friends');
+    if (!res.ok) return;
     const friends = await res.json();
     const container = document.getElementById('friends-list');
 
     if (friends.length === 0) {
-        container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem; padding: 10px;">Chưa có bạn bè. Hãy kết bạn ở Tab Bầu Trời Đêm!</p>';
+        container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem; padding: 15px; text-align: center;">Chưa có bạn đồng hành.<br>Hãy kết bạn ở Tab Bầu Trời Đêm nhé!</p>';
         return;
     }
 
-    container.innerHTML = friends.map(f => `
-        <div class="friend-item ${currentChatUserId === f.id ? 'active' : ''}" onclick="openChat(${f.id}, '${f.username}')">
-            <span>🌙 ${f.username}</span>
-            <span class="badge-sm">Cấp ${f.sky_level}</span>
-        </div>
-    `).join('');
+    container.innerHTML = friends.map(f => {
+        const firstLetter = f.username.charAt(0).toUpperCase();
+        const isActive = currentChatUserId === f.id ? 'active' : '';
+        return `
+            <div class="friend-item ${isActive}" onclick="openChat(${f.id}, '${f.username}')">
+                <div class="avatar-circle">${firstLetter}</div>
+                <div class="friend-info">
+                    <span class="friend-name">${f.username}</span>
+                    <span class="friend-level">🌌 Cấp ${f.sky_level}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function openChat(friendId, username) {
     currentChatUserId = friendId;
-    document.getElementById('active-chat-user').innerText = `💬 Trò chuyện với ${username}`;
+    
+    document.getElementById('active-chat-user').innerText = username;
+    document.getElementById('chat-header-avatar').innerText = username.charAt(0).toUpperCase();
+    document.getElementById('chat-header-status').style.display = 'inline';
+    
     document.getElementById('chat-input').disabled = false;
     document.getElementById('send-msg-btn').disabled = false;
+    document.getElementById('chat-input').focus();
     
     loadFriends();
     loadMessages();
@@ -201,8 +226,14 @@ async function openChat(friendId, username) {
 async function loadMessages() {
     if (!currentChatUserId) return;
     const res = await fetch(`/api/messages/${currentChatUserId}`);
+    if (!res.ok) return;
     const messages = await res.json();
     const container = document.getElementById('chat-messages');
+
+    if (messages.length === 0) {
+        container.innerHTML = '<div class="empty-chat-placeholder"><span>Hãy gửi lời chào tới người bạn này nhé!</span></div>';
+        return;
+    }
 
     container.innerHTML = messages.map(m => {
         const isMe = m.sender_id !== currentChatUserId;
@@ -216,25 +247,39 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-async function sendMessage() {
+function appendSingleMessage(msg) {
+    const container = document.getElementById('chat-messages');
+    
+    const placeholder = container.querySelector('.empty-chat-placeholder');
+    if (placeholder) placeholder.remove();
+
+    const isMe = msg.sender_id !== currentChatUserId;
+    
+    const msgHTML = `
+        <div class="message-bubble ${isMe ? 'me' : 'them'}">
+            <div class="msg-content">${msg.content}</div>
+        </div>
+    `;
+    container.innerHTML += msgHTML;
+    container.scrollTop = container.scrollHeight;
+}
+
+function sendMessage() {
     const input = document.getElementById('chat-input');
     const content = input.value.trim();
     if (!content || !currentChatUserId) return;
 
-    const res = await fetch('/api/messages/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ receiver_id: currentChatUserId, content })
+    socket.emit('send_message', {
+        receiver_id: currentChatUserId,
+        content: content
     });
 
-    if (res.ok) {
-        input.value = '';
-        loadMessages();
-    }
+    input.value = '';
 }
 
 async function loadLeaderboard() {
     const res = await fetch('/api/leaderboard');
+    if (!res.ok) return;
     const users = await res.json();
     const container = document.getElementById('leaderboard-list');
     
@@ -268,6 +313,7 @@ async function loadLeaderboard() {
 
 function initSkyCanvas() {
     const canvas = document.getElementById('sky-canvas');
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     function resize() {
