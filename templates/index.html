@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NightBook - Nhật Ký Đêm Khuya</title>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <canvas id="sky-canvas"></canvas>
+
+    <!-- Modal Auth Gate -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-card">
+            <h2 id="auth-title">🌙 Chào mừng tới NightBook</h2>
+            <div id="auth-error" class="error-msg"></div>
+            <div class="auth-inputs">
+                <input type="text" id="auth-username" placeholder="Tên tài khoản..." autocomplete="off">
+                <input type="password" id="auth-password" placeholder="Mật khẩu...">
+                <button id="auth-submit-btn" class="primary-btn full-width">Đăng nhập</button>
+            </div>
+            <p class="auth-toggle-text">
+                <span id="auth-toggle-prompt">Chưa có tài khoản?</span>
+                <a href="#" id="auth-toggle-link">Đăng ký ngay</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- App Main UI -->
+    <div class="app-container">
+        <header class="header">
+            <h1 class="logo">NightBook 🌙</h1>
+            <div class="user-info">
+                <span class="badge">🔥 Streak: <strong id="streak-val">0</strong> ngày</span>
+                <span class="badge">🌌 Bầu trời: <strong id="sky-level-val">Cấp 1</strong></span>
+                <button id="logout-btn" class="secondary-btn">Đăng xuất</button>
+            </div>
+        </header>
+
+        <nav class="nav-bar">
+            <button class="nav-btn active" data-tab="tab-write">✍️ Viết Nhật Ký</button>
+            <button class="nav-btn" data-tab="tab-private">🔒 Của Tôi</button>
+            <button class="nav-btn" data-tab="tab-public">🌍 Bầu Trời Đêm</button>
+            <button class="nav-btn" data-tab="tab-chat">💬 Bạn Bè</button>
+            <button class="nav-btn" data-tab="tab-leaderboard">🏆 Xếp Hạng</button>
+        </nav>
+
+        <main class="content-area">
+            <!-- Tab Viết Nhật Ký -->
+            <section id="tab-write" class="tab-panel active">
+                <div class="card editor-card">
+                    <h2>Hôm nay của bạn thế nào?</h2>
+                    <div class="mood-selector">
+                        <button class="mood-btn active" data-mood="calm">🌙 Bình yên</button>
+                        <button class="mood-btn" data-mood="sad">🌧️ Trầm lắng</button>
+                        <button class="mood-btn" data-mood="happy">✨ Vui vẻ</button>
+                        <button class="mood-btn" data-mood="anxious">🌪️ Trăn trở</button>
+                    </div>
+                    <textarea id="entry-content" placeholder="Chia sẻ tâm sự với bầu trời đêm..."></textarea>
+                    <div class="editor-footer">
+                        <label class="toggle-public">
+                            <input type="checkbox" id="is-public">
+                            <span>Chia sẻ lên Bầu Trời Đêm (Công khai)</span>
+                        </label>
+                        <button id="submit-btn" class="primary-btn">Gửi Đêm Khuya</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Riêng tư -->
+            <section id="tab-private" class="tab-panel">
+                <h2 class="section-title">Nhật ký riêng tư</h2>
+                <div id="private-entries-list" class="entries-list"></div>
+            </section>
+
+            <!-- Tab Công khai -->
+            <section id="tab-public" class="tab-panel">
+                <h2 class="section-title">Tâm sự từ những người thức muộn</h2>
+                <div id="public-entries-list" class="entries-list"></div>
+            </section>
+
+            <!-- Tab Bạn Bè & Nhắn Tin -->
+            <section id="tab-chat" class="tab-panel">
+                <div class="chat-layout">
+                    <div class="card friends-sidebar">
+                        <h3>👥 Bạn đồng hành</h3>
+                        <div id="friends-list" class="friends-list"></div>
+                    </div>
+                    <div class="card chat-window">
+                        <div id="chat-header" class="chat-header">
+                            <span id="active-chat-user">Chọn một người bạn để trò chuyện</span>
+                        </div>
+                        <div id="chat-messages" class="chat-messages">
+                            <p class="text-muted text-center" style="margin-top: 50px;">Hãy thắp sáng bầu trời bằng những lời tâm sự...</p>
+                        </div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="Nhập lời tâm sự..." disabled autocomplete="off">
+                            <button id="send-msg-btn" class="primary-btn" disabled>Gửi</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab Bảng Xếp Hạng -->
+            <section id="tab-leaderboard" class="tab-panel">
+                <div class="card">
+                    <h2>🏆 Bảng xếp hạng thắp sáng đêm</h2>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">
+                        Những người giữ được chuỗi Streak và Vũ Trụ Đêm rực rỡ nhất!
+                    </p>
+                    <div id="leaderboard-list" class="leaderboard-list"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
