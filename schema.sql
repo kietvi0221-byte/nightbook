@@ -42,4 +42,11 @@ CREATE INDEX IF NOT EXISTS idx_journals_user_id ON journals(user_id);
 -- Đánh chỉ mục để sắp xếp nhật ký theo thời gian nhanh hơn
 CREATE INDEX IF NOT EXISTS idx_journals_created_at ON journals(created_at);
 CREATE INDEX IF NOT EXISTS idx_entries_user_id ON entries(user_id);
-CREATE INDEX IF NOT EXISTS idx_entries_created_at ON entries(created_at);
+CREATE INDEX IF NOT EXISTS idx_entries_created_at ON entries(created_at);CREATE INDEX IF NOT EXISTS idx_messages_sender_receiver_created
+ON messages(sender_id, receiver_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_messages_receiver_sender_created
+ON messages(receiver_id, sender_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_friends_user_friend
+ON friends(user_id, friend_id);
