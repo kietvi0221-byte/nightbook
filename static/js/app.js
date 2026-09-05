@@ -2,11 +2,18 @@ let currentMood = 'calm';
 let skyLevel = 1;
 let isLoginMode = true;
 let currentChatUserId = null;
-let animationFrameId = null;
+
+// Cache dữ liệu client để đổi Tab không bị giật/lag
+const dataCache = {
+    privateEntries: null,
+    publicEntries: null,
+    friends: null,
+    leaderboard: null
+};
 
 const socket = io();
 
-// Xử lý nhận tin nhắn Real-time
+// Real-time nhận tin nhắn
 socket.on('receive_message', (msg) => {
     if (currentChatUserId && (msg.sender_id === currentChatUserId || msg.receiver_id === currentChatUserId)) {
         appendSingleMessage(msg);
@@ -14,13 +21,12 @@ socket.on('receive_message', (msg) => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
-    initSkyCanvas();
     checkAuth();
     setupEventListeners();
 });
 
 function setupEventListeners() {
-    // Chuyển Tab mượt mà
+    // Chuyển Tab tức thì (Instant Tab Swap)
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -44,7 +50,7 @@ function setupEventListeners() {
         });
     });
 
-    // Chuyển đổi giữa Đăng nhập / Đăng ký
+    // Toggle Đăng nhập / Đăng ký
     document.getElementById('auth-toggle-link').addEventListener('click', (e) => {
         e.preventDefault();
         isLoginMode = !isLoginMode;
@@ -59,24 +65,37 @@ function setupEventListeners() {
 
     document.getElementById('logout-btn').addEventListener('click', async () => {
         await fetch('/api/logout', { method: 'POST' });
-        checkAuth();
+        location.reload();
     });
 
+    // Đăng nhật ký - Optimistic UI (Hiện ngay lập tức)
     document.getElementById('submit-btn').addEventListener('click', async () => {
-        const content = document.getElementById('entry-content').value;
+        const contentInput = document.getElementById('entry-content');
+        const content = contentInput.value.trim();
         const isPublic = document.getElementById('is-public').checked;
 
-        if (!content.trim()) return alert('Hãy viết vài dòng tâm sự nhé!');
+        if (!content) return alert('Hãy viết vài dòng tâm sự nhé!');
 
-        const response = await fetch('/api/entries', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, mood: currentMood, is_public: isPublic })
-        });
+        const newEntry = {
+            content,
+            mood: currentMood,
+            created_at: new Date().toISOString(),
+            username: 'Bạn'
+        };
 
-        if (response.ok) {
-            document.getElementById('entry-content').value = '';
-            checkAuth();
+        // Render lên màn hình NGAY LẬP TỨC
+        prependEntryToUI(newEntry, isPublic);
+        contentInput.value = '';
+
+        // Gửi ngầm lên Server
+        try {
+            await fetch('/api/entries', {
+                method: 'POST',
+                headers: { 'Content-Type': 'Application/json' },
+                body: JSON.stringify({ content, mood: currentMood, is_public: isPublic })
+            });
+        } catch (err) {
+            console.error('Lỗi lưu nhật ký:', err);
         }
     });
 
@@ -86,17 +105,21 @@ function setupEventListeners() {
     });
 }
 
-// Tối ưu Auth
+// Xử lý Auth mượt mà
 async function handleAuth() {
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
     const errorDiv = document.getElementById('auth-error');
+    const submitBtn = document.getElementById('auth-submit-btn');
 
     if (!username.trim() || !password.trim()) {
-        errorDiv.innerText = 'Vui lòng nhập tên đăng nhập và mật khẩu!';
+        errorDiv.innerText = 'Vui lòng điền đầy đủ thông tin!';
         errorDiv.style.display = 'block';
         return;
     }
+
+    submitBtn.innerText = 'Đang xử lý...';
+    submitBtn.disabled = true;
 
     const url = isLoginMode ? '/api/login' : '/api/register';
     
@@ -110,8 +133,6 @@ async function handleAuth() {
         const data = await res.json();
         if (res.ok) {
             errorDiv.style.display = 'none';
-            document.getElementById('auth-username').value = '';
-            document.getElementById('auth-password').value = '';
             checkAuth();
         } else {
             errorDiv.innerText = data.error || 'Có lỗi xảy ra!';
@@ -120,40 +141,73 @@ async function handleAuth() {
     } catch (err) {
         errorDiv.innerText = 'Lỗi kết nối máy chủ!';
         errorDiv.style.display = 'block';
+    } finally {
+        submitBtn.innerText = isLoginMode ? 'Đăng nhập' : 'Đăng ký';
+        submitBtn.disabled = false;
     }
 }
 
 async function checkAuth() {
-    const res = await fetch('/api/user');
-    const data = await res.json();
-    
-    const modal = document.getElementById('auth-modal');
-    const appContainer = document.querySelector('.app-container');
-
-    if (data.logged_in) {
-        modal.style.display = 'none';
-        appContainer.style.display = 'block';
+    try {
+        const res = await fetch('/api/user');
+        const data = await res.json();
         
-        document.getElementById('streak-val').innerText = data.streak_count;
-        document.getElementById('sky-level-val').innerText = `Cấp ${data.sky_level}`;
-        skyLevel = data.sky_level;
-        
-        socket.emit('join_room', {});
+        const modal = document.getElementById('auth-modal');
+        const appContainer = document.querySelector('.app-container');
 
-        loadPrivateEntries();
-        loadPublicEntries();
-    } else {
-        appContainer.style.display = 'none';
-        modal.style.display = 'flex';
+        if (data.logged_in) {
+            modal.style.display = 'none';
+            appContainer.style.display = 'block';
+            
+            document.getElementById('streak-val').innerText = data.streak_count;
+            document.getElementById('sky-level-val').innerText = `Cấp ${data.sky_level}`;
+            skyLevel = data.sky_level;
+            
+            socket.emit('join_room', {});
+
+            loadPrivateEntries();
+            loadPublicEntries();
+        } else {
+            appContainer.style.display = 'none';
+            modal.style.display = 'flex';
+        }
+    } catch (err) {
+        console.error("Lỗi xác thực:", err);
     }
 }
 
-async function loadPrivateEntries() {
-    const res = await fetch('/api/entries/private');
-    if (!res.ok) return;
-    const entries = await res.json();
-    const container = document.getElementById('private-entries-list');
+function prependEntryToUI(entry, isPublic) {
+    const containerId = isPublic ? 'public-entries-list' : 'private-entries-list';
+    const container = document.getElementById(containerId);
     
+    const div = document.createElement('div');
+    div.className = 'entry-card';
+    div.innerHTML = `
+        <div class="entry-header">
+            <span>${isPublic ? '👤 ' + entry.username : 'Cảm xúc: ' + entry.mood}</span>
+            <span>Vừa xong</span>
+        </div>
+        <p>${entry.content}</p>
+    `;
+    container.insertBefore(div, container.firstChild);
+}
+
+async function loadPrivateEntries() {
+    const container = document.getElementById('private-entries-list');
+    if (dataCache.privateEntries) {
+        renderPrivateEntries(dataCache.privateEntries);
+    }
+    
+    const res = await fetch('/api/entries/private');
+    if (res.ok) {
+        const entries = await res.json();
+        dataCache.privateEntries = entries;
+        renderPrivateEntries(entries);
+    }
+}
+
+function renderPrivateEntries(entries) {
+    const container = document.getElementById('private-entries-list');
     container.innerHTML = entries.map(e => `
         <div class="entry-card">
             <div class="entry-header">
@@ -166,11 +220,20 @@ async function loadPrivateEntries() {
 }
 
 async function loadPublicEntries() {
-    const res = await fetch('/api/entries/public');
-    if (!res.ok) return;
-    const entries = await res.json();
-    const container = document.getElementById('public-entries-list');
+    if (dataCache.publicEntries) {
+        renderPublicEntries(dataCache.publicEntries);
+    }
     
+    const res = await fetch('/api/entries/public');
+    if (res.ok) {
+        const entries = await res.json();
+        dataCache.publicEntries = entries;
+        renderPublicEntries(entries);
+    }
+}
+
+function renderPublicEntries(entries) {
+    const container = document.getElementById('public-entries-list');
     container.innerHTML = entries.map(e => `
         <div class="entry-card">
             <div class="entry-header">
@@ -191,54 +254,47 @@ async function addFriend(friendId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ friend_id: friendId })
     });
-    const data = await res.json();
-    if (res.ok) {
-        alert('Đã kết bạn thành công!');
-    } else {
-        alert(data.error || 'Không thể kết bạn');
-    }
+    if (res.ok) alert('Đã gửi yêu cầu kết bạn!');
 }
 
 async function loadFriends() {
-    const res = await fetch('/api/friends');
-    if (!res.ok) return;
-    const friends = await res.json();
-    const container = document.getElementById('friends-list');
+    if (dataCache.friends) renderFriends(dataCache.friends);
 
+    const res = await fetch('/api/friends');
+    if (res.ok) {
+        const friends = await res.json();
+        dataCache.friends = friends;
+        renderFriends(friends);
+    }
+}
+
+function renderFriends(friends) {
+    const container = document.getElementById('friends-list');
     if (friends.length === 0) {
-        container.innerHTML = '<p class="text-muted" style="font-size: 0.85rem; padding: 15px; text-align: center;">Chưa có bạn đồng hành.<br>Hãy kết bạn ở Tab Bầu Trời Đêm nhé!</p>';
+        container.innerHTML = '<p style="font-size:0.85rem; padding:15px; text-align:center; color:#94a3b8;">Chưa có bạn bè.</p>';
         return;
     }
 
-    container.innerHTML = friends.map(f => {
-        const firstLetter = f.username.charAt(0).toUpperCase();
-        const isActive = currentChatUserId === f.id ? 'active' : '';
-        return `
-            <div class="friend-item ${isActive}" onclick="openChat(${f.id}, '${f.username}')">
-                <div class="avatar-circle">${firstLetter}</div>
-                <div class="friend-info">
-                    <span class="friend-name">${f.username}</span>
-                    <span class="friend-level">🌌 Cấp ${f.sky_level}</span>
-                </div>
+    container.innerHTML = friends.map(f => `
+        <div class="friend-item ${currentChatUserId === f.id ? 'active' : ''}" onclick="openChat(${f.id}, '${f.username}')">
+            <div class="avatar-circle">${f.username.charAt(0).toUpperCase()}</div>
+            <div class="friend-info">
+                <span class="friend-name">${f.username}</span>
+                <span class="friend-level">🌌 Cấp ${f.sky_level}</span>
             </div>
-        `;
-    }).join('');
+        </div>
+    `).join('');
 }
 
 async function openChat(friendId, username) {
     currentChatUserId = friendId;
-    
     document.getElementById('active-chat-user').innerText = username;
     document.getElementById('chat-header-avatar').innerText = username.charAt(0).toUpperCase();
     document.getElementById('chat-header-status').style.display = 'inline';
-    
     document.getElementById('chat-input').disabled = false;
     document.getElementById('send-msg-btn').disabled = false;
-    document.getElementById('chat-input').focus();
     
-    // Cập nhật giao diện bạn bè
     document.querySelectorAll('.friend-item').forEach(el => el.classList.remove('active'));
-    
     loadMessages();
 }
 
@@ -249,43 +305,25 @@ async function loadMessages() {
     const messages = await res.json();
     const container = document.getElementById('chat-messages');
 
-    if (messages.length === 0) {
-        container.innerHTML = '<div class="empty-chat-placeholder"><span>Hãy gửi lời chào tới người bạn này nhé!</span></div>';
-        return;
-    }
-
-    const fragment = document.createDocumentFragment();
-    messages.forEach(m => {
-        const isMe = m.sender_id !== currentChatUserId;
-        const div = document.createElement('div');
-        div.className = `message-bubble ${isMe ? 'me' : 'them'}`;
-        div.innerHTML = `<div class="msg-content">${m.content}</div>`;
-        fragment.appendChild(div);
-    });
-
-    container.innerHTML = '';
-    container.appendChild(fragment);
-    container.scrollTop = container.scrollHeight;
-}
-
-function appendSingleMessage(msg) {
-    const container = document.getElementById('chat-messages');
-    const placeholder = container.querySelector('.empty-chat-placeholder');
-    if (placeholder) placeholder.remove();
-
-    const isMe = msg.sender_id !== currentChatUserId;
-    const div = document.createElement('div');
-    div.className = `message-bubble ${isMe ? 'me' : 'them'}`;
-    div.innerHTML = `<div class="msg-content">${msg.content}</div>`;
+    container.innerHTML = messages.map(m => `
+        <div class="message-bubble ${m.sender_id !== currentChatUserId ? 'me' : 'them'}">
+            <div class="msg-content">${m.content}</div>
+        </div>
+    `).join('');
     
-    container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
+// Nhắn tin Optimistic UI - Bấm gửi là hiện lên khung chat ngay lập tức!
 function sendMessage() {
     const input = document.getElementById('chat-input');
     const content = input.value.trim();
     if (!content || !currentChatUserId) return;
+
+    appendSingleMessage({
+        sender_id: 'me',
+        content: content
+    });
 
     socket.emit('send_message', {
         receiver_id: currentChatUserId,
@@ -295,31 +333,39 @@ function sendMessage() {
     input.value = '';
 }
 
-async function loadLeaderboard() {
-    const res = await fetch('/api/leaderboard');
-    if (!res.ok) return;
-    const users = await res.json();
-    const container = document.getElementById('leaderboard-list');
+function appendSingleMessage(msg) {
+    const container = document.getElementById('chat-messages');
+    const isMe = msg.sender_id !== currentChatUserId;
     
+    const div = document.createElement('div');
+    div.className = `message-bubble ${isMe ? 'me' : 'them'}`;
+    div.innerHTML = `<div class="msg-content">${msg.content}</div>`;
+    
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function loadLeaderboard() {
+    if (dataCache.leaderboard) renderLeaderboard(dataCache.leaderboard);
+
+    const res = await fetch('/api/leaderboard');
+    if (res.ok) {
+        const users = await res.json();
+        dataCache.leaderboard = users;
+        renderLeaderboard(users);
+    }
+}
+
+function renderLeaderboard(users) {
+    const container = document.getElementById('leaderboard-list');
     if (!container) return;
 
-    if (users.length === 0) {
-        container.innerHTML = '<p class="text-muted">Chưa có dữ liệu xếp hạng.</p>';
-        return;
-    }
-
     container.innerHTML = users.map((u, index) => {
-        let rankIcon = `#${index + 1}`;
-        if (index === 0) rankIcon = '🥇';
-        else if (index === 1) rankIcon = '🥈';
-        else if (index === 2) rankIcon = '🥉';
-
+        let rankIcon = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`;
         return `
             <div class="leaderboard-item">
                 <div class="rank">${rankIcon}</div>
-                <div class="user-details">
-                    <span class="username">${u.username}</span>
-                </div>
+                <div class="user-details"><span class="username">${u.username}</span></div>
                 <div class="stats">
                     <span class="badge">🔥 ${u.streak_count} ngày</span>
                     <span class="badge">🌌 Cấp ${u.sky_level}</span>
@@ -327,56 +373,4 @@ async function loadLeaderboard() {
             </div>
         `;
     }).join('');
-}
-
-// Tối ưu Canvas: Render nhẹ và tự dừng khi tab ẩn
-function initSkyCanvas() {
-    const canvas = document.getElementById('sky-canvas');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    // Giảm số lượng sao xuống 60 để nhẹ máy
-    const stars = Array.from({ length: 60 }, () => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        radius: Math.random() * 1.2,
-        alpha: Math.random(),
-        speed: 0.005 + Math.random() * 0.008
-    }));
-
-    function animate() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        const visibleStars = Math.min(stars.length, skyLevel * 20);
-        for (let i = 0; i < visibleStars; i++) {
-            const star = stars[i];
-            star.alpha += star.speed;
-            if (star.alpha > 1 || star.alpha < 0) star.speed = -star.speed;
-
-            ctx.beginPath();
-            ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${Math.abs(star.alpha)})`;
-            ctx.fill();
-        }
-
-        animationFrameId = requestAnimationFrame(animate);
-    }
-
-    // Tự dừng animation khi chuyển Tab trình duyệt để tiết kiệm CPU
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            cancelAnimationFrame(animationFrameId);
-        } else {
-            animate();
-        }
-    });
-
-    animate();
 }
