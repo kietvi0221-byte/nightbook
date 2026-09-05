@@ -1,9 +1,5 @@
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS friendships;
-DROP TABLE IF EXISTS entries;
-DROP TABLE IF EXISTS users;
-
-CREATE TABLE users (
+```sql
+CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
@@ -12,7 +8,7 @@ CREATE TABLE users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE entries (
+CREATE TABLE IF NOT EXISTS entries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     content TEXT NOT NULL,
@@ -22,7 +18,7 @@ CREATE TABLE entries (
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
-CREATE TABLE friendships (
+CREATE TABLE IF NOT EXISTS friendships (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     friend_id INTEGER NOT NULL,
@@ -33,7 +29,7 @@ CREATE TABLE friendships (
     UNIQUE(user_id, friend_id)
 );
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sender_id INTEGER NOT NULL,
     receiver_id INTEGER NOT NULL,
@@ -42,3 +38,4 @@ CREATE TABLE messages (
     FOREIGN KEY (sender_id) REFERENCES users (id),
     FOREIGN KEY (receiver_id) REFERENCES users (id)
 );
+```
