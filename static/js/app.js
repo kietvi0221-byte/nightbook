@@ -2,8 +2,10 @@ let currentMood = 'calm';
 let skyLevel = 1;
 let isLoginMode = true;
 let currentChatUserId = null;
+let currentChatFriendshipStatus = 'none'; // 'accepted', 'pending', 'received_request', 'none'
+let currentUser = null; // Lưu thông tin người dùng đang đăng nhập
 
-// Cache dữ liệu client để đổi Tab không bị giật/lag
+// Cache dữ liệu client
 const dataCache = {
     privateEntries: null,
     publicEntries: null,
@@ -11,14 +13,51 @@ const dataCache = {
     leaderboard: null
 };
 
+// Khởi tạo kết nối Socket.IO
 const socket = io();
 
-// Real-time nhận tin nhắn
+// ----------------------------------------------------
+// CÁC SỰ KIỆN SOCKET.IO REALTIME
+// ----------------------------------------------------
+
+socket.on('connect', () => {
+    socket.emit('join_room', {});
+});
+
+// Realtime nhận tin nhắn
 socket.on('receive_message', (msg) => {
     if (currentChatUserId && (msg.sender_id === currentChatUserId || msg.receiver_id === currentChatUserId)) {
         appendSingleMessage(msg);
     }
 });
+
+// Realtime nhận lời mời kết bạn
+socket.on('receive_friend_request', (data) => {
+    alert(`📩 ${data.message || 'Bạn vừa nhận được một lời mời kết bạn mới!'}`);
+    
+    dataCache.friends = null;
+    
+    if (currentChatUserId === data.sender_id) {
+        updateChatUIStatus('received_request', data.sender_id);
+    }
+});
+
+// Realtime khi lời mời kết bạn được chấp nhận
+socket.on('friend_request_accepted', (data) => {
+    alert(`🎉 ${data.message || 'Lời mời kết bạn đã được chấp nhận!'}`);
+    
+    dataCache.friends = null;
+    loadFriends();
+
+    if (currentChatUserId === data.friend_id) {
+        updateChatUIStatus('accepted', data.friend_id);
+        loadMessages();
+    }
+});
+
+// ----------------------------------------------------
+// SETUP BAN ĐẦU & EVENT LISTENERS
+// ----------------------------------------------------
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -26,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function setupEventListeners() {
-    // Chuyển Tab tức thì (Instant Tab Swap)
+    // Chuyển Tab
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -68,7 +107,7 @@ function setupEventListeners() {
         location.reload();
     });
 
-    // Đăng nhật ký - Optimistic UI (Hiện ngay lập tức)
+    // Đăng nhật ký - Optimistic UI
     document.getElementById('submit-btn').addEventListener('click', async () => {
         const contentInput = document.getElementById('entry-content');
         const content = contentInput.value.trim();
@@ -83,15 +122,13 @@ function setupEventListeners() {
             username: 'Bạn'
         };
 
-        // Render lên màn hình NGAY LẬP TỨC
         prependEntryToUI(newEntry, isPublic);
         contentInput.value = '';
 
-        // Gửi ngầm lên Server
         try {
             await fetch('/api/entries', {
                 method: 'POST',
-                headers: { 'Content-Type': 'Application/json' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content, mood: currentMood, is_public: isPublic })
             });
         } catch (err) {
@@ -105,7 +142,10 @@ function setupEventListeners() {
     });
 }
 
-// Xử lý Auth mượt mà
+// ----------------------------------------------------
+// QUẢN LÝ TÀI KHOẢN & XÁC THỰC
+// ----------------------------------------------------
+
 async function handleAuth() {
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
@@ -156,6 +196,7 @@ async function checkAuth() {
         const appContainer = document.querySelector('.app-container');
 
         if (data.logged_in) {
+            currentUser = data;
             modal.style.display = 'none';
             appContainer.style.display = 'block';
             
@@ -176,6 +217,10 @@ async function checkAuth() {
     }
 }
 
+// ----------------------------------------------------
+// HIỂN THỊ VÀ TẢI NHẬT KÝ
+// ----------------------------------------------------
+
 function prependEntryToUI(entry, isPublic) {
     const containerId = isPublic ? 'public-entries-list' : 'private-entries-list';
     const container = document.getElementById(containerId);
@@ -193,10 +238,7 @@ function prependEntryToUI(entry, isPublic) {
 }
 
 async function loadPrivateEntries() {
-    const container = document.getElementById('private-entries-list');
-    if (dataCache.privateEntries) {
-        renderPrivateEntries(dataCache.privateEntries);
-    }
+    if (dataCache.privateEntries) renderPrivateEntries(dataCache.privateEntries);
     
     const res = await fetch('/api/entries/private');
     if (res.ok) {
@@ -220,9 +262,7 @@ function renderPrivateEntries(entries) {
 }
 
 async function loadPublicEntries() {
-    if (dataCache.publicEntries) {
-        renderPublicEntries(dataCache.publicEntries);
-    }
+    if (dataCache.publicEntries) renderPublicEntries(dataCache.publicEntries);
     
     const res = await fetch('/api/entries/public');
     if (res.ok) {
@@ -239,7 +279,7 @@ function renderPublicEntries(entries) {
             <div class="entry-header">
                 <span>👤 ${e.username}</span>
                 <div>
-                    <button class="add-friend-btn" onclick="addFriend(${e.user_id})">➕ Kết bạn</button>
+                    <button class="add-friend-btn" onclick="sendFriendRequest(${e.user_id})">➕ Kết bạn</button>
                     <span>${new Date(e.created_at).toLocaleString('vi-VN')}</span>
                 </div>
             </div>
@@ -248,13 +288,68 @@ function renderPublicEntries(entries) {
     `).join('');
 }
 
-async function addFriend(friendId) {
-    const res = await fetch('/api/friends/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ friend_id: friendId })
-    });
-    if (res.ok) alert('Đã gửi yêu cầu kết bạn!');
+// ----------------------------------------------------
+// KẾT BẠN & KHUNG CHAT REALTIME
+// ----------------------------------------------------
+
+async function sendFriendRequest(friendId) {
+    try {
+        const res = await fetch('/api/friends/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ friend_id: friendId })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+            socket.emit('send_friend_request', {
+                sender_id: currentUser ? currentUser.id : null,
+                sender_name: currentUser ? currentUser.username : 'Bạn',
+                receiver_id: friendId
+            });
+
+            alert(data.message || 'Đã gửi yêu cầu kết bạn!');
+            if (currentChatUserId === friendId) {
+                updateChatUIStatus('pending', friendId);
+            }
+        } else {
+            alert(data.error || 'Không thể gửi kết bạn');
+        }
+    } catch (err) {
+        alert('Có lỗi kết nối khi gửi kết bạn!');
+    }
+}
+
+async function acceptFriendRequest(senderId) {
+    try {
+        const res = await fetch('/api/friends/accept', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sender_id: senderId })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            socket.emit('accept_friend_request', {
+                user_id: currentUser ? currentUser.id : null,
+                user_name: currentUser ? currentUser.username : 'Bạn',
+                friend_id: senderId
+            });
+
+            alert(data.message || 'Đã đồng ý kết bạn!');
+            dataCache.friends = null;
+            loadFriends();
+
+            if (currentChatUserId === senderId) {
+                updateChatUIStatus('accepted', senderId);
+                loadMessages();
+            }
+        } else {
+            alert(data.error || 'Không thể chấp nhận lời mời');
+        }
+    } catch (err) {
+        alert('Có lỗi kết nối khi chấp nhận kết bạn!');
+    }
 }
 
 async function loadFriends() {
@@ -270,13 +365,15 @@ async function loadFriends() {
 
 function renderFriends(friends) {
     const container = document.getElementById('friends-list');
+    if (!container) return;
+
     if (friends.length === 0) {
         container.innerHTML = '<p style="font-size:0.85rem; padding:15px; text-align:center; color:#94a3b8;">Chưa có bạn bè.</p>';
         return;
     }
 
     container.innerHTML = friends.map(f => `
-        <div class="friend-item ${currentChatUserId === f.id ? 'active' : ''}" onclick="openChat(${f.id}, '${f.username}')">
+        <div class="friend-item ${currentChatUserId === f.id ? 'active' : ''}" onclick="openChat(${f.id}, '${f.username}', '${f.status || 'accepted'}')">
             <div class="avatar-circle">${f.username.charAt(0).toUpperCase()}</div>
             <div class="friend-info">
                 <span class="friend-name">${f.username}</span>
@@ -286,16 +383,66 @@ function renderFriends(friends) {
     `).join('');
 }
 
-async function openChat(friendId, username) {
+async function openChat(friendId, username, status = 'accepted') {
     currentChatUserId = friendId;
     document.getElementById('active-chat-user').innerText = username;
     document.getElementById('chat-header-avatar').innerText = username.charAt(0).toUpperCase();
     document.getElementById('chat-header-status').style.display = 'inline';
-    document.getElementById('chat-input').disabled = false;
-    document.getElementById('send-msg-btn').disabled = false;
     
     document.querySelectorAll('.friend-item').forEach(el => el.classList.remove('active'));
-    loadMessages();
+    
+    updateChatUIStatus(status, friendId);
+
+    if (status === 'accepted') {
+        loadMessages();
+    } else {
+        document.getElementById('chat-messages').innerHTML = '';
+    }
+}
+
+function updateChatUIStatus(status, friendId) {
+    currentChatFriendshipStatus = status;
+    
+    const inputContainer = document.querySelector('.chat-input-container') || document.getElementById('chat-input-area');
+    let noticeArea = document.getElementById('friend-notice-area');
+
+    if (!noticeArea && inputContainer) {
+        noticeArea = document.createElement('div');
+        noticeArea.id = 'friend-notice-area';
+        noticeArea.className = 'friend-notice-box';
+        inputContainer.parentNode.insertBefore(noticeArea, inputContainer);
+    }
+
+    const chatInput = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('send-msg-btn');
+
+    if (status === 'accepted') {
+        if (chatInput) chatInput.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+        if (noticeArea) noticeArea.style.display = 'none';
+        if (inputContainer) inputContainer.style.display = 'flex';
+    } else {
+        if (chatInput) chatInput.disabled = true;
+        if (sendBtn) sendBtn.disabled = true;
+        if (inputContainer) inputContainer.style.display = 'none';
+
+        if (noticeArea) {
+            noticeArea.style.display = 'block';
+            if (status === 'pending') {
+                noticeArea.innerHTML = `<p class="notice-text">⏳ Đã gửi lời mời kết bạn. Đang chờ đối phương đồng ý...</p>`;
+            } else if (status === 'received_request') {
+                noticeArea.innerHTML = `
+                    <p class="notice-text">Người này đã gửi lời mời kết bạn cho cậu.</p>
+                    <button onclick="acceptFriendRequest(${friendId})" class="btn-accept">✅ Chấp nhận lời mời</button>
+                `;
+            } else {
+                noticeArea.innerHTML = `
+                    <p class="notice-text">🔒 Cần trở thành bạn bè để nhắn tin cho nhau.</p>
+                    <button onclick="sendFriendRequest(${friendId})" class="btn-add-friend">➕ Gửi lời mời kết bạn</button>
+                `;
+            }
+        }
+    }
 }
 
 async function loadMessages() {
@@ -314,11 +461,15 @@ async function loadMessages() {
     container.scrollTop = container.scrollHeight;
 }
 
-// Nhắn tin Optimistic UI - Bấm gửi là hiện lên khung chat ngay lập tức!
 function sendMessage() {
     const input = document.getElementById('chat-input');
     const content = input.value.trim();
+    
     if (!content || !currentChatUserId) return;
+
+    if (currentChatFriendshipStatus !== 'accepted') {
+        return alert('🔒 Cậu cần trở thành bạn bè với người này mới có thể nhắn tin!');
+    }
 
     appendSingleMessage({
         sender_id: 'me',
@@ -344,6 +495,10 @@ function appendSingleMessage(msg) {
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
+
+// ----------------------------------------------------
+// BẢNG XẾP HẠNG (LEADERBOARD)
+// ----------------------------------------------------
 
 async function loadLeaderboard() {
     if (dataCache.leaderboard) renderLeaderboard(dataCache.leaderboard);

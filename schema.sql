@@ -36,4 +36,10 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sender_id) REFERENCES users (id),
     FOREIGN KEY (receiver_id) REFERENCES users (id)
-);
+);-- Đánh chỉ mục để tìm kiếm nhật ký theo user nhanh hơn
+CREATE INDEX IF NOT EXISTS idx_journals_user_id ON journals(user_id);
+
+-- Đánh chỉ mục để sắp xếp nhật ký theo thời gian nhanh hơn
+CREATE INDEX IF NOT EXISTS idx_journals_created_at ON journals(created_at);
+CREATE INDEX IF NOT EXISTS idx_entries_user_id ON entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_entries_created_at ON entries(created_at);

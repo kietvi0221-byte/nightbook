@@ -99,7 +99,11 @@
                             </div>
                         </div>
 
-                        <div class="chat-input-area">
+                        <!-- Khung thông báo trạng thái kết bạn (Tự động ẩn/hiện bởi JS) -->
+                        <div id="friend-notice-area" class="friend-notice-box" style="display: none;"></div>
+
+                        <!-- Khung nhập tin nhắn -->
+                        <div class="chat-input-area" id="chat-input-area">
                             <input type="text" id="chat-input" placeholder="Nhập tin nhắn tâm sự..." disabled autocomplete="off">
                             <button id="send-msg-btn" disabled>
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
