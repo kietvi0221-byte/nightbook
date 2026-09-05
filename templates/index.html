@@ -1,129 +1,513 @@
+```html
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <meta name="theme-color" content="#0b1020">
+
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <meta name="apple-mobile-web-app-status-bar-style"
+          content="black-translucent">
+
+    <meta name="apple-mobile-web-app-title"
+          content="NightBook">
+
     <title>NightBook - Nhật Ký Bầu Trời Đêm</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <!-- PWA -->
+    <link rel="manifest"
+          href="{{ url_for('static', filename='manifest.json') }}">
+
+    <!-- CSS -->
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
+
+    <!-- ==================================================
+         BẦU TRỜI
+    ================================================== -->
+
     <canvas id="sky-canvas"></canvas>
 
-    <!-- Modal Đăng nhập / Đăng ký -->
+
+    <!-- ==================================================
+         MODAL ĐĂNG NHẬP / ĐĂNG KÝ
+    ================================================== -->
+
     <div id="auth-modal" class="modal-overlay">
+
         <div class="modal-card">
-            <h2 id="auth-title">🌙 Chào mừng tới NightBook</h2>
-            <div id="auth-error" class="error-msg" style="display: none;"></div>
-            <input type="text" id="auth-username" placeholder="Tên đăng nhập" autocomplete="off">
-            <input type="password" id="auth-password" placeholder="Mật khẩu">
-            <button id="auth-submit-btn" class="btn-primary">Đăng nhập</button>
+
+            <h2 id="auth-title">
+                🌙 Chào mừng tới NightBook
+            </h2>
+
+            <div id="auth-error"
+                 class="error-msg"
+                 style="display: none;">
+            </div>
+
+            <input
+                type="text"
+                id="auth-username"
+                placeholder="Tên đăng nhập"
+                autocomplete="off">
+
+            <input
+                type="password"
+                id="auth-password"
+                placeholder="Mật khẩu">
+
+            <button
+                id="auth-submit-btn"
+                class="btn-primary">
+                Đăng nhập
+            </button>
+
             <p class="auth-toggle">
-                <span id="auth-toggle-prompt">Chưa có tài khoản?</span>
-                <a href="#" id="auth-toggle-link">Đăng ký ngay</a>
+
+                <span id="auth-toggle-prompt">
+                    Chưa có tài khoản?
+                </span>
+
+                <a href="#"
+                   id="auth-toggle-link">
+                    Đăng ký ngay
+                </a>
+
             </p>
+
         </div>
+
     </div>
 
-    <!-- Giao diện App chính -->
-    <div class="app-container" style="display: none;">
+
+    <!-- ==================================================
+         GIAO DIỆN APP CHÍNH
+    ================================================== -->
+
+    <div class="app-container"
+         style="display: none;">
+
+        <!-- HEADER -->
+
         <header class="app-header">
-            <div class="logo">🌌 NightBook</div>
-            <div class="user-stats">
-                <span>🔥 Chuỗi: <strong id="streak-val">0</strong> ngày</span>
-                <span>✨ Bầu trời: <strong id="sky-level-val">Cấp 1</strong></span>
-                <button id="logout-btn" class="btn-sm">Đăng xuất</button>
+
+            <div class="logo">
+                🌌 NightBook
             </div>
+
+            <div class="user-stats">
+
+                <span>
+                    🔥 Chuỗi:
+                    <strong id="streak-val">0</strong>
+                    ngày
+                </span>
+
+                <span>
+                    ✨ Bầu trời:
+                    <strong id="sky-level-val">
+                        Cấp 1
+                    </strong>
+                </span>
+
+                <button
+                    id="logout-btn"
+                    class="btn-sm">
+                    Đăng xuất
+                </button>
+
+            </div>
+
         </header>
 
+
+        <!-- ==================================================
+             NAVIGATION
+        ================================================== -->
+
         <nav class="app-nav">
-            <button class="nav-btn active" data-tab="tab-journal">📖 Nhật Ký</button>
-            <button class="nav-btn" data-tab="tab-sky">🌌 Bầu Trời Đêm</button>
-            <button class="nav-btn" data-tab="tab-chat">💬 Trò Chuyện</button>
-            <button class="nav-btn" data-tab="tab-leaderboard">🏆 Xếp Hạng</button>
+
+            <button
+                class="nav-btn active"
+                data-tab="tab-journal">
+                📖 Nhật Ký
+            </button>
+
+            <button
+                class="nav-btn"
+                data-tab="tab-sky">
+                🌌 Bầu Trời Đêm
+            </button>
+
+            <button
+                class="nav-btn"
+                data-tab="tab-chat">
+                💬 Trò Chuyện
+            </button>
+
+            <button
+                class="nav-btn"
+                data-tab="tab-leaderboard">
+                🏆 Xếp Hạng
+            </button>
+
         </nav>
 
+
+        <!-- ==================================================
+             NỘI DUNG APP
+        ================================================== -->
+
         <main class="app-content">
-            <!-- Tab Nhật Ký -->
-            <div id="tab-journal" class="tab-panel active">
+
+
+            <!-- ==================================================
+                 TAB NHẬT KÝ
+            ================================================== -->
+
+            <div
+                id="tab-journal"
+                class="tab-panel active">
+
                 <div class="card journal-input-card">
-                    <h3>Hôm nay bạn thấy thế nào?</h3>
-                    <textarea id="entry-content" placeholder="Chia sẻ suy nghĩ của bạn đêm nay..."></textarea>
+
+                    <h3>
+                        Hôm nay bạn thấy thế nào?
+                    </h3>
+
+                    <textarea
+                        id="entry-content"
+                        placeholder="Chia sẻ suy nghĩ của bạn đêm nay...">
+                    </textarea>
+
+
                     <div class="mood-selector">
-                        <span>Cảm xúc:</span>
-                        <button class="mood-btn active" data-mood="calm">😌 Bình yên</button>
-                        <button class="mood-btn" data-mood="sad">🌧️ Trầm lắng</button>
-                        <button class="mood-btn" data-mood="happy">⭐ Vui vẻ</button>
-                        <button class="mood-btn" data-mood="anxious">🌀 Trăn trở</button>
+
+                        <span>
+                            Cảm xúc:
+                        </span>
+
+                        <button
+                            class="mood-btn active"
+                            data-mood="calm">
+                            😌 Bình yên
+                        </button>
+
+                        <button
+                            class="mood-btn"
+                            data-mood="sad">
+                            🌧️ Trầm lắng
+                        </button>
+
+                        <button
+                            class="mood-btn"
+                            data-mood="happy">
+                            ⭐ Vui vẻ
+                        </button>
+
+                        <button
+                            class="mood-btn"
+                            data-mood="anxious">
+                            🌀 Trăn trở
+                        </button>
+
                     </div>
+
+
                     <div class="form-footer">
-                        <label><input type="checkbox" id="is-public"> Chia sẻ lên Bầu Trời Đêm</label>
-                        <button id="submit-btn" class="btn-primary">Lưu tâm sự</button>
+
+                        <label>
+
+                            <input
+                                type="checkbox"
+                                id="is-public">
+
+                            Chia sẻ lên Bầu Trời Đêm
+
+                        </label>
+
+
+                        <button
+                            id="submit-btn"
+                            class="btn-primary">
+
+                            Lưu tâm sự
+
+                        </button>
+
                     </div>
+
                 </div>
+
+
                 <div class="entries-section">
-                    <h3>Nhật ký riêng tư</h3>
-                    <div id="private-entries-list" class="entries-list"></div>
-                </div>
-            </div>
 
-            <!-- Tab Bầu Trời Đêm -->
-            <div id="tab-sky" class="tab-panel">
-                <h3>Tâm sự từ những ngôi sao khác</h3>
-                <div id="public-entries-list" class="entries-list"></div>
-            </div>
+                    <h3>
+                        Nhật ký riêng tư
+                    </h3>
 
-            <!-- Tab Trò chuyện Kiểu Messenger -->
-            <div id="tab-chat" class="tab-panel">
-                <div class="messenger-container">
-                    <div class="messenger-sidebar">
-                        <div class="sidebar-header">
-                            <h3>💬 Bạn đồng hành</h3>
-                        </div>
-                        <div id="friends-list" class="friends-list"></div>
+                    <div
+                        id="private-entries-list"
+                        class="entries-list">
                     </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ==================================================
+                 TAB BẦU TRỜI ĐÊM
+            ================================================== -->
+
+            <div
+                id="tab-sky"
+                class="tab-panel">
+
+                <h3>
+                    Tâm sự từ những ngôi sao khác
+                </h3>
+
+                <div
+                    id="public-entries-list"
+                    class="entries-list">
+                </div>
+
+            </div>
+
+
+            <!-- ==================================================
+                 TAB TRÒ CHUYỆN
+            ================================================== -->
+
+            <div
+                id="tab-chat"
+                class="tab-panel">
+
+                <div class="messenger-container">
+
+
+                    <!-- SIDEBAR -->
+
+                    <div class="messenger-sidebar">
+
+                        <div class="sidebar-header">
+
+                            <h3>
+                                💬 Bạn đồng hành
+                            </h3>
+
+                        </div>
+
+                        <div
+                            id="friends-list"
+                            class="friends-list">
+                        </div>
+
+                    </div>
+
+
+                    <!-- CHAT -->
 
                     <div class="messenger-chat-area">
+
+
+                        <!-- CHAT HEADER -->
+
                         <div class="chat-header">
+
                             <div class="chat-header-user">
-                                <div class="avatar-circle" id="chat-header-avatar">🌙</div>
-                                <div>
-                                    <h4 id="active-chat-user">Chọn một bạn đồng hành để trò chuyện</h4>
-                                    <span class="online-status" id="chat-header-status" style="display: none;">● Đang hoạt động</span>
+
+                                <div
+                                    class="avatar-circle"
+                                    id="chat-header-avatar">
+                                    🌙
                                 </div>
+
+                                <div>
+
+                                    <h4 id="active-chat-user">
+                                        Chọn một bạn đồng hành để
+                                        trò chuyện
+                                    </h4>
+
+                                    <span
+                                        class="online-status"
+                                        id="chat-header-status"
+                                        style="display: none;">
+                                        ● Đang hoạt động
+                                    </span>
+
+                                </div>
+
                             </div>
+
                         </div>
 
-                        <div id="chat-messages" class="chat-messages">
-                            <div class="empty-chat-placeholder">
-                                <span>🌌 Hãy chọn một người bạn để bắt đầu tâm sự đêm nay.</span>
+
+                        <!-- MESSAGES -->
+
+                        <div
+                            id="chat-messages"
+                            class="chat-messages">
+
+                            <div
+                                class="empty-chat-placeholder">
+
+                                <span>
+                                    🌌 Hãy chọn một người bạn
+                                    để bắt đầu tâm sự đêm nay.
+                                </span>
+
                             </div>
+
                         </div>
 
-                        <!-- Khung thông báo trạng thái kết bạn (Tự động ẩn/hiện bởi JS) -->
-                        <div id="friend-notice-area" class="friend-notice-box" style="display: none;"></div>
 
-                        <!-- Khung nhập tin nhắn -->
-                        <div class="chat-input-area" id="chat-input-area">
-                            <input type="text" id="chat-input" placeholder="Nhập tin nhắn tâm sự..." disabled autocomplete="off">
-                            <button id="send-msg-btn" disabled>
-                                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                        <!-- THÔNG BÁO KẾT BẠN -->
+
+                        <div
+                            id="friend-notice-area"
+                            class="friend-notice-box"
+                            style="display: none;">
+                        </div>
+
+
+                        <!-- INPUT CHAT -->
+
+                        <div
+                            class="chat-input-area"
+                            id="chat-input-area">
+
+                            <input
+                                type="text"
+                                id="chat-input"
+                                placeholder="Nhập tin nhắn tâm sự..."
+                                disabled
+                                autocomplete="off">
+
+                            <button
+                                id="send-msg-btn"
+                                disabled>
+
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    width="20"
+                                    height="20"
+                                    fill="currentColor">
+
+                                    <path
+                                        d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z">
+                                    </path>
+
                                 </svg>
+
                             </button>
+
                         </div>
+
                     </div>
+
                 </div>
+
             </div>
 
-            <!-- Tab Xếp Hạng -->
-            <div id="tab-leaderboard" class="tab-panel">
-                <h3>Bảng xếp hạng Cột mốc & Bầu trời</h3>
-                <div id="leaderboard-list" class="leaderboard-list"></div>
+
+            <!-- ==================================================
+                 TAB XẾP HẠNG
+            ================================================== -->
+
+            <div
+                id="tab-leaderboard"
+                class="tab-panel">
+
+                <h3>
+                    Bảng xếp hạng Cột mốc & Bầu trời
+                </h3>
+
+                <div
+                    id="leaderboard-list"
+                    class="leaderboard-list">
+                </div>
+
             </div>
+
         </main>
+
     </div>
 
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+    <!-- ==================================================
+         SOCKET.IO
+    ================================================== -->
+
+    <script
+        src="https://cdn.socket.io/4.7.5/socket.io.min.js">
+    </script>
+
+
+    <!-- ==================================================
+         NIGHTBOOK JAVASCRIPT
+    ================================================== -->
+
+    <script
+        src="{{ url_for('static', filename='js/app.js') }}">
+    </script>
+
+
+    <!-- ==================================================
+         PWA SERVICE WORKER
+    ================================================== -->
+
+    <script>
+
+        if ("serviceWorker" in navigator) {
+
+            window.addEventListener("load", function () {
+
+                navigator.serviceWorker
+                    .register(
+                        "{{ url_for(
+                            'static',
+                            filename='service-worker.js'
+                        ) }}"
+                    )
+
+                    .then(function (registration) {
+
+                        console.log(
+                            "🌙 NightBook PWA đã sẵn sàng!",
+                            registration
+                        );
+
+                    })
+
+                    .catch(function (error) {
+
+                        console.error(
+                            "NightBook PWA Service Worker lỗi:",
+                            error
+                        );
+
+                    });
+
+            });
+
+        }
+
+    </script>
+
 </body>
 </html>
+```
