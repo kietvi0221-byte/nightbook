@@ -1,4 +1,3 @@
-```python
 import os
 import sqlite3
 from datetime import datetime, date
@@ -34,11 +33,13 @@ def get_db():
 
 
 def init_db():
-    """Tạo các bảng nếu database chưa có."""
+    """Tạo database và các bảng nếu chưa tồn tại."""
 
     if not os.path.exists(SCHEMA_FILE):
         print("ERROR: Không tìm thấy schema.sql")
         return
+
+    db = None
 
     try:
         db = get_db()
@@ -48,16 +49,20 @@ def init_db():
 
         db.executescript(schema)
         db.commit()
-        db.close()
 
         print("Database initialized successfully.")
 
     except Exception as e:
         print("Database initialization error:", e)
 
+    finally:
+        if db:
+            db.close()
 
-# Khởi tạo database ngay khi Flask được load.
-# Điều này rất quan trọng khi Render chạy bằng Gunicorn.
+
+# Quan trọng:
+# Render chạy Gunicorn bằng cách import app.py,
+# nên phải khởi tạo database ở đây.
 init_db()
 
 
@@ -76,6 +81,7 @@ def index():
 
 @app.route("/api/register", methods=["POST"])
 def register():
+
     data = request.get_json(silent=True) or {}
 
     username = str(data.get("username", "")).strip()
@@ -120,6 +126,7 @@ def register():
         })
 
     except sqlite3.Error as e:
+
         db.rollback()
 
         print("REGISTER DATABASE ERROR:", e)
@@ -134,6 +141,7 @@ def register():
 
 @app.route("/api/login", methods=["POST"])
 def login():
+
     data = request.get_json(silent=True) or {}
 
     username = str(data.get("username", "")).strip()
@@ -147,6 +155,7 @@ def login():
     db = get_db()
 
     try:
+
         user = db.execute(
             "SELECT * FROM users WHERE username = ?",
             (username,)
@@ -174,6 +183,7 @@ def login():
         })
 
     except sqlite3.Error as e:
+
         print("LOGIN DATABASE ERROR:", e)
 
         return jsonify({
@@ -186,6 +196,7 @@ def login():
 
 @app.route("/api/logout", methods=["POST"])
 def logout():
+
     session.clear()
 
     return jsonify({
@@ -195,6 +206,7 @@ def logout():
 
 @app.route("/api/user", methods=["GET"])
 def get_user():
+
     if "user_id" not in session:
         return jsonify({
             "logged_in": False
@@ -203,6 +215,7 @@ def get_user():
     db = get_db()
 
     try:
+
         user_id = session["user_id"]
 
         user = db.execute(
@@ -215,6 +228,7 @@ def get_user():
         ).fetchone()
 
         if not user:
+
             session.clear()
 
             return jsonify({
@@ -236,9 +250,11 @@ def get_user():
         current_level = user["sky_level"] or 1
 
         if last_entry and last_entry["created_at"]:
+
             last_date_str = last_entry["created_at"].split()[0]
 
             try:
+
                 last_date = datetime.strptime(
                     last_date_str,
                     "%Y-%m-%d"
@@ -247,6 +263,7 @@ def get_user():
                 delta_days = (date.today() - last_date).days
 
                 if delta_days > 1 and current_streak > 0:
+
                     current_streak = 0
                     current_level = 1
 
@@ -283,12 +300,14 @@ def get_user():
 
 @app.route("/api/entries/private", methods=["GET"])
 def get_private_entries():
+
     if "user_id" not in session:
         return jsonify([])
 
     db = get_db()
 
     try:
+
         entries = db.execute(
             """
             SELECT *
@@ -310,9 +329,11 @@ def get_private_entries():
 
 @app.route("/api/entries/public", methods=["GET"])
 def get_public_entries():
+
     db = get_db()
 
     try:
+
         entries = db.execute(
             """
             SELECT
@@ -336,6 +357,7 @@ def get_public_entries():
 
 @app.route("/api/entries", methods=["POST"])
 def add_entry():
+
     if "user_id" not in session:
         return jsonify({
             "error": "Vui lòng đăng nhập"
@@ -358,6 +380,7 @@ def add_entry():
     user_id = session["user_id"]
 
     try:
+
         last_entry = db.execute(
             """
             SELECT created_at
@@ -386,9 +409,11 @@ def add_entry():
         today = date.today()
 
         if last_entry and last_entry["created_at"]:
+
             last_date_str = last_entry["created_at"].split()[0]
 
             try:
+
                 last_date = datetime.strptime(
                     last_date_str,
                     "%Y-%m-%d"
@@ -406,9 +431,11 @@ def add_entry():
                     new_streak = 1
 
             except ValueError:
+
                 new_streak = 1
 
         else:
+
             new_streak = 1
 
         new_level = min(
@@ -453,6 +480,7 @@ def add_entry():
         })
 
     except sqlite3.Error as e:
+
         db.rollback()
 
         print("ENTRY DATABASE ERROR:", e)
@@ -471,9 +499,11 @@ def add_entry():
 
 @app.route("/api/leaderboard", methods=["GET"])
 def get_leaderboard():
+
     db = get_db()
 
     try:
+
         users = db.execute(
             """
             SELECT
@@ -502,6 +532,7 @@ def get_leaderboard():
 
 @app.route("/api/friends/add", methods=["POST"])
 def add_friend():
+
     if "user_id" not in session:
         return jsonify({
             "error": "Vui lòng đăng nhập"
@@ -519,12 +550,15 @@ def add_friend():
 
     try:
         friend_id = int(friend_id)
+
     except (ValueError, TypeError):
+
         return jsonify({
             "error": "ID người dùng không hợp lệ"
         }), 400
 
     if user_id == friend_id:
+
         return jsonify({
             "error": "Không thể tự kết bạn với chính mình"
         }), 400
@@ -532,12 +566,14 @@ def add_friend():
     db = get_db()
 
     try:
+
         friend_exists = db.execute(
             "SELECT id FROM users WHERE id = ?",
             (friend_id,)
         ).fetchone()
 
         if not friend_exists:
+
             return jsonify({
                 "error": "Người dùng không tồn tại"
             }), 404
@@ -567,6 +603,7 @@ def add_friend():
         })
 
     except sqlite3.IntegrityError:
+
         db.rollback()
 
         return jsonify({
@@ -579,12 +616,14 @@ def add_friend():
 
 @app.route("/api/friends", methods=["GET"])
 def get_friends():
+
     if "user_id" not in session:
         return jsonify([])
 
     db = get_db()
 
     try:
+
         friends = db.execute(
             """
             SELECT
@@ -613,6 +652,7 @@ def get_friends():
 
 @app.route("/api/messages/<int:friend_id>", methods=["GET"])
 def get_messages(friend_id):
+
     if "user_id" not in session:
         return jsonify([])
 
@@ -621,6 +661,7 @@ def get_messages(friend_id):
     db = get_db()
 
     try:
+
         messages = db.execute(
             """
             SELECT *
@@ -649,6 +690,7 @@ def get_messages(friend_id):
 
 @app.route("/api/messages/send", methods=["POST"])
 def send_message():
+
     if "user_id" not in session:
         return jsonify({
             "error": "Vui lòng đăng nhập"
@@ -657,18 +699,23 @@ def send_message():
     data = request.get_json(silent=True) or {}
 
     receiver_id = data.get("receiver_id")
+
     content = str(
         data.get("content", "")
     ).strip()
 
     if not receiver_id or not content:
+
         return jsonify({
             "error": "Nội dung không được để trống"
         }), 400
 
     try:
+
         receiver_id = int(receiver_id)
+
     except (ValueError, TypeError):
+
         return jsonify({
             "error": "Người nhận không hợp lệ"
         }), 400
@@ -676,12 +723,14 @@ def send_message():
     db = get_db()
 
     try:
+
         receiver = db.execute(
             "SELECT id FROM users WHERE id = ?",
             (receiver_id,)
         ).fetchone()
 
         if not receiver:
+
             return jsonify({
                 "error": "Người nhận không tồn tại"
             }), 404
@@ -706,6 +755,7 @@ def send_message():
         })
 
     except sqlite3.Error as e:
+
         db.rollback()
 
         print("MESSAGE DATABASE ERROR:", e)
@@ -723,9 +773,9 @@ def send_message():
 # ==================================================
 
 if __name__ == "__main__":
+
     app.run(
         host="0.0.0.0",
         port=5000,
         debug=True
     )
-```
